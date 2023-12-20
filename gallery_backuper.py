@@ -6,15 +6,22 @@ import py7zr
 import os
 from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive
+from tqdm import tqdm
+from dataclasses import dataclass
 
 
-def create_archive(dir: Path, archive: Path) -> None:
+@dataclass
+class ImageEntry:
+    source: Path
+    dest: Path
+
+
+def create_archive(dir: Path, entries: list[ImageEntry], archive: Path) -> None:
     original = Path('.').absolute()
-    orig_dir = dir.absolute()
     os.chdir(dir)
     with py7zr.SevenZipFile(archive, 'w') as arch:
-        for entry in orig_dir.iterdir():
-            arch.writeall(entry.name)
+        for entry in tqdm(entries, desc="Archiving"):
+            arch.write(entry.dest.relative_to(dir))
 
     os.chdir(original)
 
@@ -32,12 +39,13 @@ def upload_to_drive(file: Path) -> None:
 def compress_jpeg(in_file: Path, out_file: Path) -> None:
     img = Image.open(in_file)
     exif = img.info.get('exif', None)
+    out_file.parent.mkdir(parents=True, exist_ok=True)
 
     if exif is not None:
-        img.save(out_file, "jpeg", quality=90, exif=exif,
+        img.save(out_file, 'jpeg', quality=90, exif=exif,
                  progressive=True, optimize=True)
     else:
-        img.save(out_file, "jpeg", quality=90,
+        img.save(out_file, 'jpeg', quality=90,
                  progressive=True, optimize=True)
 
     if in_file.stat().st_size <= out_file.stat().st_size:
@@ -45,20 +53,28 @@ def compress_jpeg(in_file: Path, out_file: Path) -> None:
         shutil.copy(in_file, out_file)
 
 
-def _process_entry(tmp_dir: Path, entry: Path) -> None:
-    tmp_dir.mkdir(parents=True, exist_ok=True)
+def _fetch_image_entries(tmp_dir: Path, entry: Path, entries: list[ImageEntry]) -> list[ImageEntry]:
     if entry.is_dir():
         for dir_entry in entry.iterdir():
-            _process_entry(tmp_dir/entry.name, dir_entry)
+            _fetch_image_entries(tmp_dir/entry.name, dir_entry, entries)
     elif entry.suffix.lower() in ['.jpg', '.jpeg', '.png', 'tiff', 'tif', 'gif']:
-        compress_jpeg(entry, tmp_dir/entry.name)
+        entries.append(ImageEntry(entry, tmp_dir/entry.name))
     else:
         print(f'[WARNING] File ignored: {entry.absolute()}')
 
+    return entries
 
-def process_entries(tmp_dir: Path, entries: list[Path]) -> None:
+
+def fetch_image_entries(tmp_dir: Path, entries: list[Path]) -> list[ImageEntry]:
+    out = []
     for entry in entries:
-        _process_entry(tmp_dir, entry)
+        _fetch_image_entries(tmp_dir, entry, out)
+    return out
+
+
+def process_entries(entries: list[ImageEntry]) -> None:
+    for entry in tqdm(entries, desc="Compressing"):
+        compress_jpeg(entry.source, entry.dest)
 
 
 def main():
@@ -72,15 +88,15 @@ def main():
     destination: Path = args.destination.with_suffix('.7z').absolute()
 
     try:
-        print("Compressing entries...", flush=True)
-        process_entries(Path('tmp'), args.entry)
-        print("Compressing archive...", flush=True)
-        create_archive(Path('tmp'), destination)
-        #print("Uploading archive...", flush=True)
-        #upload_to_drive(destination)
+        image_entries = fetch_image_entries(Path('tmp'), args.entry)
+        print(f'Found: {len(image_entries)} entries')
+        process_entries(image_entries)
+        create_archive(Path('tmp'), image_entries, destination)
+        # print("Uploading archive...", flush=True)
+        # upload_to_drive(destination)
         print("Done")
     finally:
-        shutil.rmtree(Path('tmp'))
+        shutil.rmtree(Path('tmp'), ignore_errors=True)
 
 
 if __name__ == '__main__':

@@ -2,3 +2,4 @@ py7zr
 numpy
 Pillow
 PyDrive
+tqdm
