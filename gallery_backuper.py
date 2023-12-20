@@ -57,7 +57,7 @@ def _fetch_image_entries(tmp_dir: Path, entry: Path, entries: list[ImageEntry]) 
     if entry.is_dir():
         for dir_entry in entry.iterdir():
             _fetch_image_entries(tmp_dir/entry.name, dir_entry, entries)
-    elif entry.suffix.lower() in ['.jpg', '.jpeg', '.png', 'tiff', 'tif', 'gif']:
+    elif entry.suffix.lower() in ['.jpg', '.jpeg', '.png', '.tiff', '.tif', '.gif', '.webp']:
         entries.append(ImageEntry(entry, tmp_dir/entry.name))
     else:
         print(f'[WARNING] File ignored: {entry.absolute()}')
