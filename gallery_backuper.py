@@ -14,6 +14,7 @@ from dataclasses import dataclass
 class ImageEntry:
     source: Path
     dest: Path
+    skip_compression: bool
 
 
 def create_archive(dir: Path, entries: list[ImageEntry], archive: Path) -> None:
@@ -45,6 +46,8 @@ def compress_jpeg(in_file: Path, out_file: Path) -> None:
         img.save(out_file, 'jpeg', quality=90, exif=exif,
                  progressive=True, optimize=True)
     else:
+        if img.mode == 'P':
+            img = img.convert('RGB')
         img.save(out_file, 'jpeg', quality=90,
                  progressive=True, optimize=True)
 
@@ -57,8 +60,11 @@ def _fetch_image_entries(tmp_dir: Path, entry: Path, entries: list[ImageEntry]) 
     if entry.is_dir():
         for dir_entry in entry.iterdir():
             _fetch_image_entries(tmp_dir/entry.name, dir_entry, entries)
-    elif entry.suffix.lower() in ['.jpg', '.jpeg', '.png', '.tiff', '.tif', '.gif', '.webp']:
-        entries.append(ImageEntry(entry, tmp_dir/entry.name))
+    elif entry.suffix.lower() in ['.jpg', '.jpeg', '.png', '.webp']:
+        entries.append(ImageEntry(
+            entry, (tmp_dir/entry.name).with_suffix('.jpg'), False))
+    elif entry.suffix.lower() in ['.gif', '.tif', '.tiff']:
+        entries.append(ImageEntry(entry, (tmp_dir/entry.name), True))
     else:
         print(f'[WARNING] File ignored: {entry.absolute()}')
 
@@ -74,7 +80,10 @@ def fetch_image_entries(tmp_dir: Path, entries: list[Path]) -> list[ImageEntry]:
 
 def process_entries(entries: list[ImageEntry]) -> None:
     for entry in tqdm(entries, desc="Compressing"):
-        compress_jpeg(entry.source, entry.dest)
+        if entry.skip_compression:
+            shutil.copy(entry.source, entry.dest)
+        else:
+            compress_jpeg(entry.source, entry.dest)
 
 
 def main():
