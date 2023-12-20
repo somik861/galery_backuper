@@ -4,27 +4,41 @@ import shutil
 from PIL import Image
 import py7zr
 import os
-
-shutil.register_archive_format(
-    '7zip', py7zr.pack_7zarchive, description='7zip archive')
+from pydrive.auth import GoogleAuth
+from pydrive.drive import GoogleDrive
 
 
 def create_archive(dir: Path, archive: Path) -> None:
     original = Path('.').absolute()
     orig_dir = dir.absolute()
     os.chdir(dir)
-    with py7zr.SevenZipFile(original/archive.with_suffix('.7z'), 'w') as arch:
+    with py7zr.SevenZipFile(archive, 'w') as arch:
         for entry in orig_dir.iterdir():
             arch.writeall(entry.name)
 
     os.chdir(original)
 
 
+def upload_to_drive(file: Path) -> None:
+    gauth = GoogleAuth()
+    gauth.LocalWebserverAuth()
+    drive = GoogleDrive(gauth)
+
+    drive_file = drive.CreateFile()
+    drive_file.SetContentFile(file)
+    drive_file.Upload()
+
+
 def compress_jpeg(in_file: Path, out_file: Path) -> None:
     img = Image.open(in_file)
-    exif = img.info['exif']
+    exif = img.info.get('exif', None)
 
-    img.save(out_file, "jpeg", quality=90, exif=exif)
+    if exif is not None:
+        img.save(out_file, "jpeg", quality=90, exif=exif,
+                 progressive=True, optimize=True)
+    else:
+        img.save(out_file, "jpeg", quality=90,
+                 progressive=True, optimize=True)
 
     if in_file.stat().st_size <= out_file.stat().st_size:
         out_file.unlink()
@@ -55,13 +69,18 @@ def main():
                         help='Files/Directories to archive')
 
     args = parser.parse_args()
+    destination: Path = args.destination.with_suffix('.7z').absolute()
 
-    print("Compressing entries...", flush=True)
-    process_entries(Path('tmp'), args.entry)
-    print("Compressing archive...", flush=True)
-    create_archive(Path('tmp'), args.destination)
-    # shutil.rmtree(Path('tmp'))
-    print("Done")
+    try:
+        print("Compressing entries...", flush=True)
+        process_entries(Path('tmp'), args.entry)
+        print("Compressing archive...", flush=True)
+        create_archive(Path('tmp'), destination)
+        #print("Uploading archive...", flush=True)
+        #upload_to_drive(destination)
+        print("Done")
+    finally:
+        shutil.rmtree(Path('tmp'))
 
 
 if __name__ == '__main__':
