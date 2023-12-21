@@ -107,6 +107,7 @@ def main():
         print("Done")
     finally:
         shutil.rmtree(Path('tmp'), ignore_errors=True)
+        destination.unlink(missing_ok=True)
 
 
 if __name__ == '__main__':
