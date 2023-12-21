@@ -18,7 +18,7 @@ class ImageEntry:
 
 
 gauth = GoogleAuth()
-gauth.LocalWebserverAuth()
+gauth.CommandLineAuth()
 drive = GoogleDrive(gauth)
 
 
