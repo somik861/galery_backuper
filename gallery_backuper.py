@@ -17,6 +17,11 @@ class ImageEntry:
     skip_compression: bool
 
 
+gauth = GoogleAuth()
+gauth.LocalWebserverAuth()
+drive = GoogleDrive(gauth)
+
+
 def create_archive(dir: Path, entries: list[ImageEntry], archive: Path) -> None:
     original = Path('.').absolute()
     os.chdir(dir)
@@ -28,12 +33,8 @@ def create_archive(dir: Path, entries: list[ImageEntry], archive: Path) -> None:
 
 
 def upload_to_drive(file: Path) -> None:
-    gauth = GoogleAuth()
-    gauth.LocalWebserverAuth()
-    drive = GoogleDrive(gauth)
-
-    drive_file = drive.CreateFile()
-    drive_file.SetContentFile(file)
+    drive_file = drive.CreateFile({'title': file.name})
+    drive_file.SetContentFile(str(file))
     drive_file.Upload()
 
 
@@ -79,7 +80,7 @@ def fetch_image_entries(tmp_dir: Path, entries: list[Path]) -> list[ImageEntry]:
 
 
 def process_entries(entries: list[ImageEntry]) -> None:
-    for entry in tqdm(entries, desc="Compressing"):
+    for entry in tqdm(entries, desc='Compressing'):
         if entry.skip_compression:
             shutil.copy(entry.source, entry.dest)
         else:
@@ -101,8 +102,8 @@ def main():
         print(f'Found: {len(image_entries)} entries')
         process_entries(image_entries)
         create_archive(Path('tmp'), image_entries, destination)
-        # print("Uploading archive...", flush=True)
-        # upload_to_drive(destination)
+        print("Uploading archive...", flush=True)
+        upload_to_drive(destination)
         print("Done")
     finally:
         shutil.rmtree(Path('tmp'), ignore_errors=True)
