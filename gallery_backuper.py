@@ -4,8 +4,8 @@ import shutil
 from PIL import Image
 import py7zr
 import os
-from pydrive.auth import GoogleAuth
-from pydrive.drive import GoogleDrive
+from pydrive2.auth import GoogleAuth
+from pydrive2.drive import GoogleDrive
 from tqdm import tqdm
 from dataclasses import dataclass
 

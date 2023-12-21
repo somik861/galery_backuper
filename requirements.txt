@@ -1,5 +1,5 @@
 py7zr
 numpy
 Pillow
-PyDrive
+PyDrive2
 tqdm
